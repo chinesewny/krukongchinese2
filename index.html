@@ -291,22 +291,46 @@
    </div>
   </div>
 
-  <div id="print-area" class="hidden">
-      <table id="print-table" style="width: 100%;">
-          <thead>
-              <tr class="print-header-row"><td colspan="13" style="text-align:center; border: none; padding-bottom: 10px;"><img src="https://img2.pic.in.th/pic/Logoc404dc85753b800c.png" style="width: 70px; height: auto;"><h2 style="font-size: 18px; font-weight: bold;">รายงานผลสัมฤทธิ์ทางการเรียน</h2><h3 style="font-size: 16px;">รายวิชาภาษาจีน (ChineseClass System)</h3><p id="print-subtitle" style="font-size: 14px;"></p></td></tr>
-              <tr class="column-header"><th>ที่</th><th>รหัส</th><th>ชื่อ - นามสกุล</th><th>บท 1</th><th>บท 2</th><th>บท 3</th><th>บท 4</th><th>บท 5</th><th>บท 6</th><th>กลางภาค</th><th>ปลายภาค</th><th>รวม</th><th>เกรด</th></tr>
-          </thead>
-          <tbody id="print-table-body"></tbody>
-      </table>
-  </div>
+  <div id="print-area" class="hidden print:block bg-white p-8 text-black">
+        
+        <div id="print-header" class="flex flex-col items-center justify-center text-center mb-6">
+            <img src="https://upload.wikimedia.org/wikipedia/th/2/23/Wny_logo.png" alt="School Logo" class="h-24 w-auto mb-2 object-contain"> 
+            
+            <h2 class="text-2xl font-bold text-black m-0">โรงเรียนวังน้ำเย็นวิทยาคม</h2>
+            <p class="text-sm text-gray-600 m-0">สังกัดองค์การบริหารส่วนจังหวัดสระแก้ว</p>
+            <h3 id="print-subtitle" class="text-xl font-bold text-black mt-2">รายงานสรุปคะแนน</h3>
+        </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
-  <script type="module" src="js/main.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.error('SW Fail', err));
-    }
+        <table class="w-full border-collapse border border-black text-sm text-black">
+            <thead>
+                <tr class="bg-gray-200 text-black">
+                    <th class="border border-black px-2 py-1 w-12">ที่</th>
+                    <th class="border border-black px-2 py-1 w-24">รหัส</th>
+                    <th class="border border-black px-2 py-1 text-left">ชื่อ-นามสกุล</th>
+                    <th class="border border-black px-1 py-1 w-10">B1</th>
+                    <th class="border border-black px-1 py-1 w-10">B2</th>
+                    <th class="border border-black px-1 py-1 w-10">B3</th>
+                    <th class="border border-black px-1 py-1 w-10">B4</th>
+                    <th class="border border-black px-1 py-1 w-10">B5</th>
+                    <th class="border border-black px-1 py-1 w-10">B6</th>
+                    <th class="border border-black px-1 py-1 w-12">Mid</th>
+                    <th class="border border-black px-1 py-1 w-12">Fin</th>
+                    <th class="border border-black px-1 py-1 w-12">รวม</th>
+                    <th class="border border-black px-1 py-1 w-12">เกรด</th>
+                </tr>
+            </thead>
+            <tbody id="print-table-body">
+                </tbody>
+        </table>
+        
+        <div class="flex justify-end mt-10 px-10">
+            <div class="text-center">
+                <p class="mb-8">ลงชื่อ ........................................................... ผู้สอน</p>
+                <p>( นายกีรติ ประสพพรรังสี )</p>
+                <p>ตำแหน่ง ครูผู้ช่วย</p>
+            </div>
+        </div>
+    </div>
   </script>
  </body>
 </html>
