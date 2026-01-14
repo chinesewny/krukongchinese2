@@ -498,23 +498,95 @@
         }
     }
 
+    // --- แก้ไขฟังก์ชันคำนวณคะแนน ---
     function calculateScores(studentId, classId, tasks) {
-        let total = 0, midterm = 0, final = 0, chapScores = [0, 0, 0, 0, 0];
+        let total = 0, midterm = 0, final = 0;
+        
+        // แยกคะแนนเก็บตามช่อง (chapter)
+        let chapterScores = {}; // {chapter: {sum: 0, count: 0, max: 0}}
+        
         const classTasks = tasks.filter(t => t.classId == classId);
+        
         classTasks.forEach(task => {
             const scoreRecord = dataState.scores.find(s => s.studentId == studentId && s.taskId == task.id);
             const score = scoreRecord ? Number(scoreRecord.score) : 0;
-            if (task.category === 'midterm') { midterm += score; total += score; }
-            else if (task.category === 'final') { final += score; total += score; }
+            
+            if (task.category === 'midterm') { 
+                midterm += score; 
+                total += score; 
+            }
+            else if (task.category === 'final') { 
+                final += score; 
+                total += score; 
+            }
             else if (task.category === 'accum') {
-                total += score;
+                // หาช่องคะแนนที่งานนี้เกี่ยวข้อง
                 if (task.chapter) {
-                    let chaps = Array.isArray(task.chapter) ? task.chapter : String(task.chapter).split(',');
-                    chaps.forEach(ch => { const idx = Number(ch) - 1; if (idx >= 0 && idx < chapScores.length) chapScores[idx] += score; });
+                    let chaps = [];
+                    if (Array.isArray(task.chapter)) {
+                        chaps = task.chapter;
+                    } else if (typeof task.chapter === 'string') {
+                        chaps = task.chapter.split(',').map(c => c.trim());
+                    } else {
+                        chaps = [String(task.chapter)];
+                    }
+                    
+                    chaps.forEach(ch => {
+                        const chapterKey = `ch${ch}`;
+                        if (!chapterScores[chapterKey]) {
+                            chapterScores[chapterKey] = { sum: 0, count: 0, max: 0 };
+                        }
+                        // หาคะแนนสูงสุดของช่องนี้จาก config ของวิชา
+                        const classInfo = dataState.classes.find(c => c.id == classId);
+                        if (classInfo) {
+                            const subject = dataState.subjects.find(s => s.id == classInfo.subjectId);
+                            if (subject && subject.scoreConfig && subject.scoreConfig.length > 0) {
+                                const chapIndex = parseInt(ch) - 1;
+                                if (chapIndex >= 0 && chapIndex < subject.scoreConfig.length) {
+                                    chapterScores[chapterKey].max = subject.scoreConfig[chapIndex];
+                                }
+                            }
+                        }
+                        chapterScores[chapterKey].sum += score;
+                        chapterScores[chapterKey].count++;
+                    });
                 }
-            } else { total += score; }
+            } else { 
+                // สำหรับงานพิเศษอื่นๆ ให้บวกเข้าคะแนนรวมปกติ
+                total += score; 
+            }
         });
-        return { total, midterm, final, chapScores };
+        
+        // คำนวณคะแนนเก็บแต่ละช่อง (เฉลี่ยและไม่เกินคะแนนสูงสุด)
+        let chapScoresArray = [0, 0, 0, 0, 0];
+        let totalAccumScore = 0;
+        
+        Object.keys(chapterScores).forEach(chapterKey => {
+            const chapterNum = parseInt(chapterKey.replace('ch', ''));
+            if (!isNaN(chapterNum) && chapterNum >= 1 && chapterNum <= 5) {
+                const idx = chapterNum - 1;
+                const chapData = chapterScores[chapterKey];
+                
+                if (chapData.count > 0) {
+                    // คำนวณค่าเฉลี่ย
+                    let averageScore = chapData.sum / chapData.count;
+                    
+                    // จำกัดไม่ให้เกินคะแนนสูงสุดของช่อง
+                    if (chapData.max > 0) {
+                        averageScore = Math.min(averageScore, chapData.max);
+                    }
+                    
+                    // ปัดเศษให้เป็นจำนวนเต็มหรือทศนิยม 1 ตำแหน่ง
+                    chapScoresArray[idx] = Math.round(averageScore * 10) / 10;
+                    totalAccumScore += chapScoresArray[idx];
+                }
+            }
+        });
+        
+        // รวมคะแนนเก็บเข้าคะแนนรวม
+        total += totalAccumScore;
+        
+        return { total, midterm, final, chapScores: chapScoresArray, totalAccumScore };
     }
 
     function closeScoreModal() {
@@ -544,7 +616,7 @@
         }
     }
 
-    // --- แก้ไข: ฟังก์ชันตั้งค่าคะแนน ---
+    // --- ฟังก์ชันตั้งค่าคะแนน ---
     function openSubjectConfig(subjectId) {
         document.getElementById('subject-config-modal').classList.remove('hidden');
         document.getElementById('config-subject-id').value = subjectId;
@@ -597,7 +669,6 @@
         document.getElementById('subject-config-modal').classList.add('hidden');
         showToast("บันทึกโครงสร้างคะแนนแล้ว");
     }
-    // ------------------------------------
     
     function setAttMode(mode) {
         attMode = mode;
@@ -635,11 +706,11 @@
 
         // 2. Scores & GPA
         const tasks = dataState.tasks.filter(t => t.classId == s.classId);
-        const { total, midterm, final } = calculateScores(s.id, s.classId, tasks);
+        const { total, midterm, final, chapScores } = calculateScores(s.id, s.classId, tasks);
         document.getElementById('ind-gpa').textContent = calGrade(total);
-        document.getElementById('ind-score-mid').textContent = midterm || '-';
-        document.getElementById('ind-score-final').textContent = final || '-';
-
+        document.getElementById('ind-score-mid').textContent = midterm.toFixed(1);
+        document.getElementById('ind-score-final').textContent = final.toFixed(1);
+        
         // 3. Attendance Stats
         const atts = dataState.attendance.filter(a => a.studentId == s.id);
         let p=0, l=0, a=0, act=0, aDates=[];
@@ -697,22 +768,36 @@
         const currentClass = dataState.classes.find(c => c.id == classId);
         const students = dataState.students.filter(s => s.classId == classId).sort((a, b) => Number(a.no) - Number(b.no));
         const tasks = dataState.tasks.filter(t => t.classId == classId);
+        const classInfo = dataState.classes.find(c => c.id == classId);
+        const subject = classInfo ? dataState.subjects.find(s => s.id == classInfo.subjectId) : null;
+        const config = (subject && subject.scoreConfig && subject.scoreConfig.length > 0) ? subject.scoreConfig : Array(5).fill(10);
         
         let csvContent = "\uFEFF"; 
         let headerRow = ["เลขที่", "รหัสนักเรียน", "ชื่อ-นามสกุล"];
-        tasks.forEach(t => { headerRow.push(`"${t.name} (Max ${t.maxScore})"`); });
-        headerRow.push("คะแนนรวม", "เกรด");
+        
+        // เพิ่มหัวข้อสำหรับคะแนนเก็บแต่ละช่อง
+        config.forEach((max, i) => {
+            headerRow.push(`"คะแนนเก็บ CH${i+1} (${max})"`);
+        });
+        
+        headerRow.push("กลางภาค", "ปลายภาค", "คะแนนรวม", "เกรด");
+        
         csvContent += headerRow.join(",") + "\n";
         
         students.forEach(s => {
             let row = [s.no, `"${s.code}"`, `"${s.name}"`];
-            tasks.forEach(t => {
-                const scoreRec = dataState.scores.find(sc => sc.studentId == s.id && sc.taskId == t.id);
-                row.push(scoreRec ? scoreRec.score : 0);
+            
+            // คำนวณคะแนน
+            const { chapScores, midterm, final, total } = calculateScores(s.id, classId, tasks);
+            
+            // เพิ่มคะแนนเก็บแต่ละช่อง
+            chapScores.forEach(score => {
+                row.push(score);
             });
-            const { total } = calculateScores(s.id, classId, tasks);
-            const grade = calGrade(total);
-            row.push(total, grade);
+            
+            // เพิ่มคะแนนกลางภาค, ปลายภาค, รวม, เกรด
+            row.push(midterm, final, total.toFixed(1), calGrade(total));
+            
             csvContent += row.join(",") + "\n";
         });
         
@@ -726,7 +811,7 @@
         document.body.removeChild(link);
     }
     
-    // --- แก้ไข: ฟังก์ชันพิมพ์ PDF ---
+    // --- แก้ไขฟังก์ชันพิมพ์ PDF ---
     function printOfficialReport() {
         const cid = document.getElementById('report-class').value;
         if (!cid) return alert("กรุณาเลือกห้องเรียนที่จะพิมพ์");
@@ -734,6 +819,7 @@
         const cls = dataState.classes.find(c => c.id == cid);
         const subId = document.getElementById('report-subject').value;
         const subj = dataState.subjects.find(s => s.id == subId);
+        const tasks = dataState.tasks.filter(t => t.classId == cid);
 
         // 1. ตั้งค่าหัวกระดาษ
         document.getElementById('print-subtitle').textContent = `วิชา ${subj.name} | ห้อง ${cls.name} | วันที่พิมพ์: ${formatThaiDate(new Date().toISOString())}`;
@@ -748,20 +834,46 @@
         
         // สร้าง Header Columns
         let hHTML = `<th style="width:5%;">#</th><th style="width:25%; text-align:left;">ชื่อ-นามสกุล</th>`;
-        config.forEach((m, i) => hHTML += `<th style="text-align:center;">CH${i+1}<br><span style="font-size:10px;">(${m})</span></th>`);
+        config.forEach((m, i) => {
+            // หาว่ามีงานกี่ชิ้นในช่องนี้
+            const chapterTasks = tasks.filter(t => {
+                if (t.category === 'accum' && t.chapter) {
+                    let chaps = [];
+                    if (Array.isArray(t.chapter)) {
+                        chaps = t.chapter;
+                    } else if (typeof t.chapter === 'string') {
+                        chaps = t.chapter.split(',').map(c => c.trim());
+                    } else {
+                        chaps = [String(t.chapter)];
+                    }
+                    return chaps.includes(String(i + 1));
+                }
+                return false;
+            });
+            
+            hHTML += `<th style="text-align:center;">CH${i+1}<br><span style="font-size:10px;">(${m})<br>${chapterTasks.length} งาน</span></th>`;
+        });
         hHTML += `<th style="text-align:center;">กลาง</th><th style="text-align:center;">ปลาย</th><th style="text-align:center;">รวม</th><th style="text-align:center;">เกรด</th>`;
         thead.innerHTML = hHTML;
 
         // 3. สร้าง Rows ข้อมูล
-        const tasks = dataState.tasks.filter(t => t.classId == cid);
         dataState.students.filter(s => s.classId == cid).sort((a,b)=>Number(a.no)-Number(b.no)).forEach((s, idx) => { 
             const { chapScores, midterm, final, total } = calculateScores(s.id, cid, tasks);
             const grade = calGrade(total);
             
             const tr = document.createElement('tr');
             let html = `<td style="text-align:center;">${s.no||idx+1}</td><td style="padding-left:5px;">${s.name}</td>`;
-            chapScores.forEach(score => html += `<td style="text-align:center;">${score}</td>`);
-            html += `<td style="text-align:center;">${midterm}</td><td style="text-align:center;">${final}</td><td style="text-align:center; font-weight:bold;">${total}</td><td style="text-align:center; font-weight:bold;">${grade}</td>`;
+            
+            // แสดงคะแนนเก็บแต่ละช่อง
+            chapScores.forEach((score, idx) => {
+                // ตรวจสอบว่าคะแนนเกินค่าสูงสุดหรือไม่
+                const maxScore = config[idx] || 10;
+                const isOverMax = score > maxScore;
+                
+                html += `<td style="text-align:center;${isOverMax ? 'color:red;' : ''}">${score.toFixed(1)}</td>`;
+            });
+            
+            html += `<td style="text-align:center;">${midterm.toFixed(1)}</td><td style="text-align:center;">${final.toFixed(1)}</td><td style="text-align:center; font-weight:bold;">${total.toFixed(1)}</td><td style="text-align:center; font-weight:bold;">${grade}</td>`;
             
             tr.innerHTML = html; 
             tbody.appendChild(tr); 
@@ -770,7 +882,7 @@
         window.print();
     }
     
-    // --- แก้ไข: ฟังก์ชัน Export Attendance CSV ---
+    // --- ฟังก์ชัน Export Attendance CSV ---
     function exportAttendanceCSV() {
         const cid = document.getElementById('att-class-select').value;
         if (!cid) return alert("กรุณาเลือกห้องเรียนก่อน");
@@ -822,7 +934,17 @@
 
     function getThaiDateISO() { const d=new Date(); const u=d.getTime()+(d.getTimezoneOffset()*60000); const b=new Date(u+(7*3600000)); return b.toISOString().slice(0,10); }
     function formatThaiDate(dateString) { if (!dateString) return "-"; const date = new Date(dateString); if (isNaN(date.getTime())) return "-"; return new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }).format(date); }
-    function calGrade(s) { if(s>=80)return 4; if(s>=75)return 3.5; if(s>=70)return 3; if(s>=65)return 2.5; if(s>=60)return 2; if(s>=55)return 1.5; if(s>=50)return 1; return 0; }
+    function calGrade(s) {
+        const score = parseFloat(s);
+        if(score >= 80) return 4;
+        if(score >= 75) return 3.5;
+        if(score >= 70) return 3;
+        if(score >= 65) return 2.5;
+        if(score >= 60) return 2;
+        if(score >= 55) return 1.5;
+        if(score >= 50) return 1;
+        return 0;
+    }
     function showToast(m,c,icon){ 
         const t=document.getElementById('toast-notification'); 
         document.getElementById('toast-message').textContent=m; 
@@ -888,7 +1010,7 @@
 
     function renderAdminMaterials() { const div = document.getElementById('admin-mat-list'); div.innerHTML = ''; dataState.materials.forEach(m => { const sub = dataState.subjects.find(s=>s.id == m.subjectId)?.name || '-'; const el = document.createElement('div'); el.className = "bg-white/5 p-3 rounded-xl border border-white/10 flex justify-between"; el.innerHTML = `<div><div class="text-xs text-yellow-400">${sub}</div><div class="font-bold text-sm text-white"><a href="${m.link}" target="_blank" class="hover:underline">${m.title}</a></div></div>`; div.appendChild(el); }); }
 
-    // --- ระบบคิวแบบใหม่ ---
+    // --- ระบบคิว ---
     async function saveAndRefresh(payload) { 
         // 1. ถ้าเป็นการ Login ให้ส่งทันที (ไม่เข้าคิว)
         if(payload.action === 'login') {
@@ -974,27 +1096,88 @@
         if(p.action === 'submitTask') { p.studentIds.forEach(sid => { dataState.submissions = dataState.submissions.filter(s => !(s.studentId == sid && s.taskId == p.taskId)); if(dataState.returns) dataState.returns = dataState.returns.filter(r => !(r.studentId == sid && r.taskId == p.taskId)); dataState.submissions.push({taskId:p.taskId, studentId:sid, link:p.link, timestampISO: new Date().toISOString(), comment: p.comment}); }); }
     }
 
+    // --- แก้ไขฟังก์ชัน renderGradeReport ---
     function renderGradeReport() { 
         const cid = document.getElementById('report-class').value;
         const thead = document.getElementById('report-table-header');
         const tbody = document.getElementById('report-table-body'); 
         tbody.innerHTML = ''; thead.innerHTML = '';
         if(!cid) return; 
+        
         const cls = dataState.classes.find(c => c.id == cid);
         const subj = dataState.subjects.find(s => s.id == cls.subjectId);
         const config = (subj && subj.scoreConfig && subj.scoreConfig.length > 0) ? subj.scoreConfig : Array(5).fill(10);
+        const tasks = dataState.tasks.filter(t => t.classId == cid);
+        
+        // สร้าง header
         let hHTML = `<th class="px-2 py-4 text-center">#</th><th class="px-2 py-4 text-left min-w-[150px]">ชื่อ-นามสกุล</th>`;
-        config.forEach((m, i) => hHTML += `<th class="px-1 py-4 text-center text-yellow-400">CH${i+1}<br><span class="text-[9px] opacity-50">(${m})</span></th>`);
+        
+        // เพิ่ม header สำหรับคะแนนเก็บแต่ละช่อง
+        config.forEach((m, i) => {
+            // หาว่ามีงานกี่ชิ้นในช่องนี้
+            const chapterTasks = tasks.filter(t => {
+                if (t.category === 'accum' && t.chapter) {
+                    let chaps = [];
+                    if (Array.isArray(t.chapter)) {
+                        chaps = t.chapter;
+                    } else if (typeof t.chapter === 'string') {
+                        chaps = t.chapter.split(',').map(c => c.trim());
+                    } else {
+                        chaps = [String(t.chapter)];
+                    }
+                    return chaps.includes(String(i + 1));
+                }
+                return false;
+            });
+            
+            hHTML += `<th class="px-1 py-4 text-center text-yellow-400">CH${i+1}<br><span class="text-[9px] opacity-50">(${m})<br>${chapterTasks.length} งาน</span></th>`;
+        });
+        
         hHTML += `<th class="px-1 py-4 text-center text-blue-400">กลาง</th><th class="px-1 py-4 text-center text-red-400">ปลาย</th><th class="px-2 py-4 text-center text-white font-bold bg-white/10">รวม</th><th class="px-2 py-4 text-center">เกรด</th>`;
         thead.innerHTML = hHTML;
-        const tasks = dataState.tasks.filter(t => t.classId == cid);
+        
+        // สร้างแถวข้อมูลนักเรียน
         dataState.students.filter(s => s.classId == cid).sort((a,b)=>Number(a.no)-Number(b.no)).forEach((s, idx) => { 
-            const { chapScores, midterm, final, total } = calculateScores(s.id, cid, tasks), grade = calGrade(total);
-            const tr = document.createElement('tr'); tr.className = "hover:bg-white/5 transition-colors"; 
+            const { chapScores, midterm, final, total, totalAccumScore } = calculateScores(s.id, cid, tasks);
+            const grade = calGrade(total);
+            const tr = document.createElement('tr'); 
+            tr.className = "hover:bg-white/5 transition-colors"; 
+            
             let html = `<td class="text-center text-white/50">${s.no||idx+1}</td><td class="px-2 py-3 text-white text-xs">${s.name}</td>`;
-            chapScores.forEach(score => html += `<td class="text-center text-yellow-400 font-mono">${score}</td>`);
-            html += `<td class="text-center text-blue-400 font-bold">${midterm}</td><td class="text-center text-red-400 font-bold">${final}</td><td class="text-center font-bold text-white bg-white/10">${total}</td><td class="text-center text-green-400 font-bold text-lg">${grade}</td>`;
-            tr.innerHTML = html; tbody.appendChild(tr); 
+            
+            // แสดงคะแนนเก็บแต่ละช่อง
+            chapScores.forEach((score, idx) => {
+                // หาว่ามีงานในช่องนี้กี่ชิ้น
+                const chapterTasks = tasks.filter(t => {
+                    if (t.category === 'accum' && t.chapter) {
+                        let chaps = [];
+                        if (Array.isArray(t.chapter)) {
+                            chaps = t.chapter;
+                        } else if (typeof t.chapter === 'string') {
+                            chaps = t.chapter.split(',').map(c => c.trim());
+                        } else {
+                            chaps = [String(t.chapter)];
+                        }
+                        return chaps.includes(String(idx + 1));
+                    }
+                    return false;
+                });
+                
+                // ถ้ามีงานในช่องนี้ ให้แสดงคะแนน
+                if (chapterTasks.length > 0) {
+                    // ตรวจสอบว่าคะแนนเกินค่าสูงสุดหรือไม่
+                    const maxScore = config[idx] || 10;
+                    const isOverMax = score > maxScore;
+                    
+                    html += `<td class="text-center text-yellow-400 font-mono ${isOverMax ? 'text-red-400' : ''}" title="${chapterTasks.length} งาน${isOverMax ? ' (เกินค่าสูงสุด)' : ''}">${score.toFixed(1)}</td>`;
+                } else {
+                    html += `<td class="text-center text-white/30">-</td>`;
+                }
+            });
+            
+            html += `<td class="text-center text-blue-400 font-bold">${midterm.toFixed(1)}</td><td class="text-center text-red-400 font-bold">${final.toFixed(1)}</td><td class="text-center font-bold text-white bg-white/10">${total.toFixed(1)}</td><td class="text-center text-green-400 font-bold text-lg">${grade}</td>`;
+            tr.innerHTML = html; 
+            tbody.appendChild(tr); 
         }); 
     }
 
@@ -1149,7 +1332,7 @@
         if (role === 'admin') { 
             currentEmail = localStorage.getItem('admin_email') || ""; 
         } else { 
-            // แก้ไข: ใช้ mainProfile จาก studentRecords[0]
+            // ใช้ mainProfile จาก studentRecords[0]
             const code = localStorage.getItem('current_student_code'); 
             const studentRecords = dataState.students.filter(s => String(s.code) === String(code));
             if(studentRecords.length > 0) {
@@ -1257,7 +1440,7 @@
     };
 
     function renderStudentDashboard(studentCode) {
-        // --- 1. ค้นหาข้อมูลนักเรียนทั้งหมดจากรหัสนักเรียน (เผื่อมีหลายห้อง/หลายวิชา) ---
+        // 1. ค้นหาข้อมูลนักเรียนทั้งหมดจากรหัสนักเรียน (เผื่อมีหลายห้อง/หลายวิชา)
         const studentRecords = dataState.students.filter(s => String(s.code) === String(studentCode));
         if (studentRecords.length === 0) return;
 
@@ -1278,7 +1461,7 @@
         
         const today = getThaiDateISO();
 
-        // --- 2. วนลูปสร้างการ์ดสำหรับ "ทุกวิชา" ที่นักเรียนลงทะเบียน ---
+        // 2. วนลูปสร้างการ์ดสำหรับ "ทุกวิชา" ที่นักเรียนลงทะเบียน
         studentRecords.forEach(studentRecord => {
             const currentClass = dataState.classes.find(c => c.id == studentRecord.classId);
             if (!currentClass) return;
@@ -1286,14 +1469,14 @@
             const subj = dataState.subjects.find(sub => sub.id == currentClass.subjectId);
             if (!subj) return;
 
-            // ดึงงานของห้องเรียนนี้ - แก้ไข: ใช้ studentRecord.classId
+            // ดึงงานของห้องเรียนนี้
             const subjectTasks = dataState.tasks.filter(t => t.classId == studentRecord.classId && t.subjectId == subj.id);
             
-            // แก้ไข: ใช้ studentRecord.id แทน s.id
-            const { midterm, final, total } = calculateScores(studentRecord.id, studentRecord.classId, subjectTasks); 
+            // คำนวณคะแนน
+            const { midterm, final, total, chapScores } = calculateScores(studentRecord.id, studentRecord.classId, subjectTasks); 
             const grade = calGrade(total);
             
-            // แก้ไข: ใช้ studentRecord.id
+            // คำนวณการเข้าเรียน
             const atts = dataState.attendance.filter(a => a.studentId == studentRecord.id);
             
             let p=0, l=0, a=0, act=0;
@@ -1308,10 +1491,9 @@
             let midDisplay = `<span class="text-white/20 font-bold">-</span>`; 
             const midTask = subjectTasks.find(t => t.category === 'midterm');
             if (midTask) {
-                // แก้ไข: ใช้ studentRecord.id
                 const hasScore = dataState.scores.some(sc => sc.studentId == studentRecord.id && sc.taskId == midTask.id);
                 if (hasScore) { 
-                    midDisplay = `<span class="text-blue-300 font-bold">${midterm}</span>`; 
+                    midDisplay = `<span class="text-blue-300 font-bold">${midterm.toFixed(1)}</span>`; 
                     if (midterm < (midTask.maxScore / 2)) { 
                         midDisplay = `<span class="text-orange-400 font-bold text-xs"><i class="fa-solid fa-triangle-exclamation"></i> ต้องแก้ไข (ไม่ผ่านเกณฑ์)</span>`; 
                     } 
@@ -1322,7 +1504,6 @@
             let finalDisplay = `<span class="text-white/20 font-bold">-</span>`; 
             const finalTask = subjectTasks.find(t => t.category === 'final');
             if (finalTask) {
-                // แก้ไข: ใช้ studentRecord.id
                 const hasScore = dataState.scores.some(sc => sc.studentId == studentRecord.id && sc.taskId == finalTask.id);
                 if (hasScore) { 
                     if (Number(final) > 0) { 
@@ -1333,7 +1514,7 @@
                 }
             }
 
-            // คำนวณความคืบหน้า - แก้ไข: ใช้ studentRecord.id
+            // คำนวณความคืบหน้า
             let completedCount = 0;
             subjectTasks.forEach(t => { 
                 const hasScore = dataState.scores.some(sc => sc.studentId == studentRecord.id && sc.taskId == t.id); 
@@ -1342,7 +1523,7 @@
             });
             let progress = subjectTasks.length > 0 ? Math.round((completedCount/subjectTasks.length)*100) : 0;
 
-            // --- 3. ดึงเนื้อหา (Material) ของวิชานี้ ---
+            // 3. ดึงเนื้อหา (Material) ของวิชานี้
             const subjectMaterials = dataState.materials.filter(m => m.subjectId == subj.id);
             let materialHTML = '';
             if (subjectMaterials.length > 0) {
@@ -1408,9 +1589,8 @@
                     </div>
                     <div class="space-y-2 max-h-48 overflow-y-auto pr-1 scrollbar-thin">`;
 
-            // เรียงลำดับงาน... (เหมือนเดิม)
+            // เรียงลำดับงาน
             const getPriority = (t) => {
-                // แก้ไข: ใช้ studentRecord.id
                 const sc = dataState.scores.find(x => x.studentId == studentRecord.id && x.taskId == t.id);
                 const sub = dataState.submissions.find(x => x.studentId == studentRecord.id && x.taskId == t.id);
                 const ret = dataState.returns ? dataState.returns.find(x => x.studentId == studentRecord.id && x.taskId == t.id) : null;
@@ -1429,7 +1609,6 @@
             }
 
             sortedTasks.forEach(t => {
-                // แก้ไข: ใช้ studentRecord.id
                 const sc = dataState.scores.find(x => x.studentId == studentRecord.id && x.taskId == t.id);
                 const submission = dataState.submissions.find(x => x.studentId == studentRecord.id && x.taskId == t.id);
                 const returned = dataState.returns ? dataState.returns.find(x => x.studentId == studentRecord.id && x.taskId == t.id) : null;
@@ -1468,7 +1647,7 @@
                         </div>`;
             });
             
-            html += `</div></div></div> ${materialHTML}`; // ปิด div, ปิด Grid, ปิด Card, ใส่ Material ด้านล่างสุดของ Card
+            html += `</div></div></div> ${materialHTML}`;
             
             card.innerHTML = html; 
             container.appendChild(card);
@@ -1501,7 +1680,6 @@
             try {
                 await saveAndRefresh({ action: 'submitTask', taskId: tid, studentIds: allStudentIds, link: link, comment: comment });
                 document.getElementById('submit-modal').classList.add('hidden');
-                // showToast("ส่งงานเรียบร้อย"); // Already handled in saveAndRefresh
                 // รีเฟรชแดชบอร์ดโดยใช้รหัสนักเรียนจาก Record ปัจจุบัน
                 const s = dataState.students.find(x => x.id == sid);
                 if(s) renderStudentDashboard(s.code);
