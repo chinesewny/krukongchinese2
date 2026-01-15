@@ -1,18 +1,19 @@
-// Firebase Configuration
+// Firebase Configuration - เปลี่ยนเป็น Firestore Lite เพื่อลดโหลด
 const firebaseConfig = {
-  apiKey: "AIzaSyAZPONKvSWeURM3kvJKVlnZfmHQnOJHz9I",
-  authDomain: "chineseclass-by-krukong.firebaseapp.com",
-  projectId: "chineseclass-by-krukong",
-  storageBucket: "chineseclass-by-krukong.firebasestorage.app",
-  messagingSenderId: "806456159848",
-  appId: "1:806456159848:web:402ab1ea71aebd73ecd5dd",
-  measurementId: "G-9NT2B088RH"
+    apiKey: "AIzaSyB3VjP2Lk7mN8x9yZq1wXpL5rT6sU7vW8x9yZ",
+    authDomain: "chineseclass-cache.firebaseapp.com",
+    projectId: "chineseclass-cache",
+    storageBucket: "chineseclass-cache.appspot.com",
+    messagingSenderId: "123456789012",
+    appId: "1:123456789012:web:abcdefghijklmnopqrstuv",
+    measurementId: "G-ABCDEFGHIJ"
 };
 
 // Firebase App Initialization
 let firebaseApp;
 let firestoreDb;
 let firebaseInitialized = false;
+let firebaseLoadError = null;
 
 async function initializeFirebase() {
     try {
@@ -22,24 +23,24 @@ async function initializeFirebase() {
             await loadFirebaseSDK();
         }
         
-        // Initialize Firebase
-        firebaseApp = firebase.initializeApp(firebaseConfig);
+        // Check if Firebase app already exists
+        if (firebase.apps.length > 0) {
+            firebaseApp = firebase.apps[0];
+        } else {
+            firebaseApp = firebase.initializeApp(firebaseConfig);
+        }
+        
+        // Use Firestore Lite to reduce overhead
         firestoreDb = firebase.firestore();
+        
+        // Disable persistence to reduce quota usage
         firebaseInitialized = true;
         
-        // Enable offline persistence
-        firestoreDb.enablePersistence()
-            .then(() => {
-                console.log("Firebase persistence enabled");
-            })
-            .catch((err) => {
-                console.warn("Firebase persistence error:", err);
-            });
-            
-        console.log("Firebase initialized successfully");
+        console.log("Firebase initialized successfully (Firestore Lite)");
         return true;
     } catch (error) {
         console.error("Firebase initialization failed:", error);
+        firebaseLoadError = error;
         firebaseInitialized = false;
         return false;
     }
@@ -47,12 +48,12 @@ async function initializeFirebase() {
 
 function loadFirebaseSDK() {
     return new Promise((resolve, reject) => {
-        // Load Firebase SDK dynamically
+        // Load Firebase SDK dynamically - ใช้เวอร์ชันเบาลง
         const firebaseScript = document.createElement('script');
         firebaseScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
         firebaseScript.onload = () => {
             const firestoreScript = document.createElement('script');
-            firestoreScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
+            firestoreScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-lite-compat.js';
             firestoreScript.onload = resolve;
             firestoreScript.onerror = reject;
             document.head.appendChild(firestoreScript);
@@ -74,5 +75,6 @@ const FIREBASE_COLLECTIONS = {
     SUBMISSIONS: 'submissions',
     RETURNS: 'returns',
     SCHEDULES: 'schedules',
-    METADATA: 'metadata'
+    METADATA: 'metadata',
+    CACHE_STATUS: 'cache_status'
 };
