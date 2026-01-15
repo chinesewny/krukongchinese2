@@ -37,7 +37,10 @@ async function initializeFirebase() {
         const settings = {
             cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
         };
-        firestoreDb.settings(settings);
+        if (!firestoreDb._initialSettingsApplied) {
+    firestoreDb.settings(settings);
+    firestoreDb._initialSettingsApplied = true;
+}
         
         firebaseInitialized = true;
         
