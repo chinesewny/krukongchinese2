@@ -1,4 +1,4 @@
-// Firebase Configuration - เปลี่ยนเป็น Firestore Lite เพื่อลดโหลด
+// Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyB3VjP2Lk7mN8x9yZq1wXpL5rT6sU7vW8x9yZ",
     authDomain: "chineseclass-cache.firebaseapp.com",
@@ -24,19 +24,24 @@ async function initializeFirebase() {
         }
         
         // Check if Firebase app already exists
-        if (firebase.apps.length > 0) {
+        if (firebase.apps && firebase.apps.length > 0) {
             firebaseApp = firebase.apps[0];
         } else {
             firebaseApp = firebase.initializeApp(firebaseConfig);
         }
         
-        // Use Firestore Lite to reduce overhead
+        // Use Firestore
         firestoreDb = firebase.firestore();
         
-        // Disable persistence to reduce quota usage
+        // Configure Firestore settings to reduce quota usage
+        const settings = {
+            cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED
+        };
+        firestoreDb.settings(settings);
+        
         firebaseInitialized = true;
         
-        console.log("Firebase initialized successfully (Firestore Lite)");
+        console.log("Firebase initialized successfully");
         return true;
     } catch (error) {
         console.error("Firebase initialization failed:", error);
@@ -48,12 +53,12 @@ async function initializeFirebase() {
 
 function loadFirebaseSDK() {
     return new Promise((resolve, reject) => {
-        // Load Firebase SDK dynamically - ใช้เวอร์ชันเบาลง
+        // Load Firebase SDK dynamically
         const firebaseScript = document.createElement('script');
         firebaseScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js';
         firebaseScript.onload = () => {
             const firestoreScript = document.createElement('script');
-            firestoreScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-lite-compat.js';
+            firestoreScript.src = 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js';
             firestoreScript.onload = resolve;
             firestoreScript.onerror = reject;
             document.head.appendChild(firestoreScript);
@@ -75,6 +80,5 @@ const FIREBASE_COLLECTIONS = {
     SUBMISSIONS: 'submissions',
     RETURNS: 'returns',
     SCHEDULES: 'schedules',
-    METADATA: 'metadata',
     CACHE_STATUS: 'cache_status'
 };
