@@ -171,5 +171,3 @@ async function saveAndRefresh(payload) {
     // 1. If it's a Login request, send immediately (no queue)
     if(payload.action === 'login') {
         showLoading("กำลังตรวจสอบ...");
-    }
-}
