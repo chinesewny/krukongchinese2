@@ -171,3 +171,36 @@ async function saveAndRefresh(payload) {
     // 1. If it's a Login request, send immediately (no queue)
     if(payload.action === 'login') {
         showLoading("กำลังตรวจสอบ...");
+        
+        try {
+            const response = await fetch(GOOGLE_SCRIPT_URL + "?action=" + payload.action, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload.data)
+            });
+            const result = await response.json();
+            
+            if(result.status === 'success') {
+                showToast(result.message, "bg-green-600");
+                await syncData(); // Refresh data
+            } else {
+                showToast(result.message || "เกิดข้อผิดพลาด", "bg-red-600");
+            }
+        } catch(error) {
+            console.error("Login error:", error);
+            showToast("เชื่อมต่อเซิร์ฟเวอร์ล้มเหลว", "bg-red-600");
+        } finally {
+            hideLoading();
+        }
+        return;
+    }
+    
+    // 2. Add other requests to queue
+    requestQueue.push(payload);
+    updateQueueBadge();
+    
+    // 3. Try to process immediately if online
+    if(navigator.onLine) {
+        processQueue();
+    }
+}
