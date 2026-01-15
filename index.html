@@ -316,22 +316,74 @@
   <div id="print-area" class="hidden"><table id="print-table" style="width: 100%;"><thead><tr class="print-header-row"><td colspan="13" style="text-align:center; border: none; padding-bottom: 10px;"><img src="https://img2.pic.in.th/pic/Logoc404dc85753b800c.png" style="width: 70px; height: auto; margin-bottom: 5px; margin-top: 10px; display: inline-block;"><h2 style="font-size: 18px; font-weight: bold; margin: 0; line-height: 1.2;">รายงานผลสัมฤทธิ์ทางการเรียน</h2><h3 style="font-size: 16px; margin: 0; line-height: 1.2;">รายวิชาภาษาจีน (ChineseClass System)</h3><p id="print-subtitle" style="font-size: 14px; margin-top: 5px;">ชั้นมัธยมศึกษาปีที่ ... ภาคเรียนที่ ... ปีการศึกษา ...</p></td></tr><tr class="column-header" id="print-column-header"></tr></thead><tbody id="print-table-body"></tbody></table><div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 14px; page-break-inside: avoid;"><div style="text-align: center; width: 40%;"><p>ลงชื่อ ...........................................................</p><p>( ........................................................... )</p><p>ครูประจำวิชา</p></div><div style="text-align: center; width: 40%;"><p>ลงชื่อ ...........................................................</p><p>( ........................................................... )</p><p>หัวหน้ากลุ่มสาระฯ</p></div></div></div>
 
   <!-- JavaScript Files -->
-  <!-- ลำดับไฟล์ที่ควรเป็น: -->
-<script src="js/config.js"></script>
-<!-- Firebase SDKs ควรโหลดก่อน -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-<script src="js/firebase-config.js"></script>
-<script src="js/firebase-fallback.js"></script>
-<script src="js/firebase-data.js"></script>
-<script src="js/data.js"></script>
-<script src="js/calculations.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/modals.js"></script>
-<script src="js/forms.js"></script>
-<script src="js/export.js"></script>
-<script src="js/events.js"></script>
-<script src="js/main.js"></script>
+  <!-- Global configuration FIRST -->
+  <script src="js/config.js"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  
+  <!-- Firebase configuration and utilities -->
+  <script src="js/firebase-config.js"></script>
+  
+  <!-- Check if firebase-fallback.js and firebase-data.js exist before including -->
+  <script>
+    // Function to load script if it exists
+    function loadScriptIfExists(src) {
+      return new Promise((resolve) => {
+        // Check if file exists by trying to fetch it
+        fetch(src, { method: 'HEAD' })
+          .then(response => {
+            if (response.ok) {
+              const script = document.createElement('script');
+              script.src = src;
+              script.onload = resolve;
+              script.onerror = () => {
+                console.warn('Failed to load script:', src);
+                resolve();
+              };
+              document.body.appendChild(script);
+            } else {
+              console.log('Script does not exist, skipping:', src);
+              resolve();
+            }
+          })
+          .catch(() => {
+            console.log('Could not check script, skipping:', src);
+            resolve();
+          });
+      });
+    }
+    
+    // Load optional Firebase files if they exist
+    document.addEventListener('DOMContentLoaded', async () => {
+      await loadScriptIfExists('js/firebase-fallback.js');
+      await loadScriptIfExists('js/firebase-data.js');
+      
+      // Continue with other scripts
+      loadCoreScripts();
+    });
+    
+    function loadCoreScripts() {
+      // Core application files (loaded in correct order)
+      const coreScripts = [
+        'js/data.js',
+        'js/calculations.js',
+        'js/ui.js',
+        'js/modals.js',
+        'js/forms.js',
+        'js/export.js',
+        'js/events.js',
+        'js/main.js' // Main file LAST
+      ];
+      
+      coreScripts.forEach(src => {
+        const script = document.createElement('script');
+        script.src = src;
+        document.body.appendChild(script);
+      });
+    }
+  </script>
   
  </body>
 </html>
