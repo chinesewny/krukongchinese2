@@ -1,0 +1,211 @@
+/* css/style.css */
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+body { 
+    font-family: 'Sarabun', sans-serif; 
+    background: radial-gradient(circle at top left, #1e3a8a, #0f172a, #000000); 
+    background-attachment: fixed;
+    color: #e2e8f0;
+    -webkit-tap-highlight-color: transparent;
+}
+.glass-ios {
+    background: rgba(255, 255, 255, 0.07);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+.glass-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    transition: all 0.3s;
+}
+.glass-input:focus {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(255, 255, 255, 0.3);
+    outline: none;
+}
+/* Autofill Fix for Dark Theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px rgba(0, 0, 0, 0.5) inset !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+.btn-blue { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.btn-blue:hover:not(:disabled) { box-shadow: 0 0 15px rgba(37, 99, 235, 0.5); transform: translateY(-1px); }
+.btn-blue:active { transform: scale(0.98); }
+
+.btn-red { background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.btn-yellow { background: linear-gradient(135deg, #d97706, #b45309); color: white; border: 1px solid rgba(255,255,255,0.2); }
+
+.btn-score-active { background: #eab308 !important; color: black !important; border: 2px solid #fff !important; font-weight: bold; transform: scale(1.1); box-shadow: 0 0 15px rgba(234, 179, 8, 0.6); }
+
+/* Attendance Buttons */
+.btn-att-active-present { background: #059669 !important; color: white !important; border-color: white !important; }
+.btn-att-active-leave { background: #d97706 !important; color: white !important; border-color: white !important; }
+.btn-att-active-absent { background: #dc2626 !important; color: white !important; border-color: white !important; }
+.btn-att-active-activity { background: #f97316 !important; color: white !important; border-color: white !important; }
+
+.status-box { transition: all 0.2s; border-radius: 12px; }
+.status-none { background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.2); color: #94a3b8; }
+.status-done { background: rgba(5, 150, 105, 0.2); border: 1px solid #059669; color: #34d399; box-shadow: 0 0 10px rgba(5, 150, 105, 0.2); }
+
+.chapter-checkbox:checked + div { background: linear-gradient(135deg, #d97706, #b45309); color: white; border-color: white; }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+#toast-notification { transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s; }
+.toast-show { transform: translate(-50%, 0) !important; opacity: 1 !important; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+@media print {
+  @page { size: A4 portrait; margin: 1cm; }
+  body { background: white !important; color: black !important; -webkit-print-color-adjust: exact; }
+  #app-root, #toast-notification, #loading-overlay, .no-print { display: none !important; }
+  #print-area { display: block !important; position: relative !important; width: 100% !important; background: white !important; color: black !important; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead { display: table-header-group; } 
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  table, th, td { border: 1px solid black !important; }
+  th, td { padding: 6px; text-align: center; color: black; }
+  .print-header-row td { border: none !important; padding-bottom: 10px; }
+  .column-header th { background-color: #e5e7eb !important; color: black !important; font-weight: bold; border: 1px solid #000; }
+}
+/* --- เอฟเฟกต์กระพริบสำหรับงานค้าง (Student Alert) --- */
+@keyframes blink-red-alert {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); border-color: rgba(220, 38, 38, 0.5); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); border-color: rgba(220, 38, 38, 1); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); border-color: rgba(220, 38, 38, 0.5); }
+}
+
+.task-overdue {
+    animation: blink-red-alert 2s infinite;
+    background: rgba(220, 38, 38, 0.1) !important;
+    border: 1px solid #ef4444 !important;
+}
+
+/* --- สไตล์สำหรับบัตรนักเรียน (ID Card) --- */
+.id-card {
+    width: 8.5cm; /* ขนาดมาตรฐานบัตร */
+    height: 5.4cm;
+    background: white;
+    color: black;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+    transform: translateZ(0); /* ช่วยเรื่องการเรนเดอร์กราฟิก */
+    background-color: white; /* บังคับพื้นหลังขาว */
+}
+
+.id-card-bg {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background: linear-gradient(135deg, #1e3a8a 0%, #ffffff 50%);
+    opacity: 0.1;
+    z-index: 0;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: white; }
+    #id-card-container {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        padding: 10px;
+    }
+}
+/* --- Lucky Draw Station Styles --- */
+.lucky-container {
+    position: relative;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+/* เอฟเฟกต์ไฟวิ่ง (Running Light Border) */
+.running-light::before {
+    content: '';
+    position: absolute;
+    top: -2px; left: -2px; right: -2px; bottom: -2px;
+    background: linear-gradient(90deg, #ff00cc, #3333ff, #00ccff, #ff00cc);
+    background-size: 400%;
+    z-index: -1;
+    border-radius: 16px;
+    animation: glowing-border 3s linear infinite;
+    opacity: 0; /* ซ่อนก่อน เริ่มสุ่มค่อยโชว์ */
+    transition: opacity 0.3s;
+}
+
+.is-spinning .running-light::before {
+    opacity: 1;
+}
+
+@keyframes glowing-border {
+    0% { background-position: 0 0; }
+    50% { background-position: 200% 0; }
+    100% { background-position: 0 0; }
+}
+
+/* จอแสดงผลชื่อ (Display Screen) */
+.lucky-display-screen {
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 150px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+}
+
+.lucky-name {
+    font-size: 3rem;
+    font-weight: bold;
+    color: white;
+    text-align: center;
+    line-height: 1.2;
+    background: -webkit-linear-gradient(#fff, #ccc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.lucky-winner .lucky-name {
+    color: #fbbf24; /* สีทอง */
+    -webkit-text-fill-color: #fbbf24;
+    text-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+    transform: scale(1.1);
+    transition: all 0.3s;
+}
+
+/* รายการประวัติ (History List) */
+.history-tag {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.8);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    animation: fadeIn 0.5s;
+}
