@@ -20,10 +20,10 @@ const EXAM_CHUNKS = 10;
 let examsDataArray = new Array(EXAM_CHUNKS).fill([]); // อาเรย์สำหรับพักข้อมูลที่หั่นแล้ว
 
 export async function syncData() {
-    if (globalState.sheetQueue && globalState.sheetQueue.length > 0) {
-        processSheetQueue();
-        return;
-    }
+    //if (globalState.sheetQueue && globalState.sheetQueue.length > 0) {
+     //   processSheetQueue();
+       // return;
+   // }
 
     updateSyncUI('Connecting (Firestore)...', 'yellow');
 
@@ -173,9 +173,9 @@ export async function restoreFromGoogleSheet() {
 }
 
 // ==========================================
-// 🔄 คิวจัดการ Google Sheet
+// 🔄 คิวจัดการ Google Sheet (ปิดการใช้งาน Auto-sync)
 // ==========================================
-async function processSheetQueue() {
+/* async function processSheetQueue() {
     if (globalState.isSendingSheet || globalState.sheetQueue.length === 0) return;
     globalState.isSendingSheet = true;
     updateSyncUI('Sync Sheet...', 'yellow');
@@ -183,7 +183,7 @@ async function processSheetQueue() {
     try {
         await fetch(GOOGLE_SCRIPT_URL, {
             method: "POST",
-            mode: "no-cors", // ใช้ no-cors หากไม่ต้องการรอ response กลับ
+            mode: "no-cors",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(item)
         });
@@ -201,3 +201,4 @@ async function processSheetQueue() {
         updateSyncUI('Sheet Error', 'red');
     }
 }
+*/
