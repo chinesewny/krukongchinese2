@@ -1,28 +1,24 @@
 // js/firebase-service.js
-let saveTimeout; // ตัวแปรสำหรับถือเวลาหน่วง
+let saveTimeout; 
+let syncTimeout;
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { 
-    getFirestore, 
-    doc, 
-    onSnapshot, 
-    setDoc 
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { FIREBASE_CONFIG, GOOGLE_SCRIPT_URL } from "./config.js";
-// 🟢 เพิ่ม updateLocalState เข้ามาเพื่อใช้อัปเดตทันที
 import { dataState, updateDataState, saveToLocalStorage, globalState, updateLocalState } from "./state.js";
 import { updateSyncUI, showToast, showLoading, hideLoading } from "./utils.js";
 import { refreshUI } from "./ui-render.js";
 
-// Initialize Firebase
 const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
-const docRef = doc(db, "school_data", "wany_data");
 
-// ==========================================
-// 🔄 ฟังก์ชัน Sync Data (รับข้อมูลจาก Server)
-// ==========================================
+// 🟢 หมวดหมู่ปกติ (ตัด exams ออก เพราะเราจะใช้ระบบหั่นไฟล์ให้มันพิเศษ)
+const DB_KEYS = ["tasks", "scores", "students", "subjects", "classes", "attendance", "materials", "submissions", "returns", "schedules", "examSessions"];
+
+// 🟢 ตั้งค่าจำนวนการหั่นไฟล์สำหรับ Exams
+const EXAM_CHUNKS = 10; 
+let examsDataArray = new Array(EXAM_CHUNKS).fill([]); // อาเรย์สำหรับพักข้อมูลที่หั่นแล้ว
+
 export async function syncData() {
     if (globalState.sheetQueue && globalState.sheetQueue.length > 0) {
         processSheetQueue();
@@ -31,42 +27,46 @@ export async function syncData() {
 
     updateSyncUI('Connecting (Firestore)...', 'yellow');
 
-    // 🟢 includeMetadataChanges: true เพื่อเช็คว่าข้อมูลมาจากเราเองหรือคนอื่น
-    onSnapshot(docRef, { includeMetadataChanges: true }, (docSnap) => {
-        
-        // ⭐ หัวใจสำคัญของการ "ไม่กระพริบ" (Anti-Flash)
-        // ถ้าข้อมูลนี้มาจากการเขียนของเราเอง (Local Write) ที่ยังไม่ยืนยันจาก Server
-        // ให้ข้ามการรีเฟรชหน้าจอไปเลย เพราะเราอัปเดตหน้าจอไปแล้วตอนกดปุ่ม
-        if (docSnap.metadata.hasPendingWrites) {
-            console.log("⏳ Local update detected (Skipping UI refresh to prevent glitch)");
-            return; 
-        }
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            console.log("🔥 Loaded from Firestore (Server Confirmed)");
-
-            // ถ้าเป็นข้อมูลจากคนอื่น หรือ Server ยืนยันแล้วว่าเปลี่ยนจริง ค่อยอัปเดต
-            updateDataState(data);
-            saveToLocalStorage();
-            refreshUI();
-            
-            updateSyncUI('Online (Firestore)', 'green');
-        } else {
-            updateSyncUI('No Data (Ready)', 'gray');
-        }
-    }, (error) => {
-        console.error("Firestore Error:", error);
-        updateSyncUI('Error: ' + error.message, 'red');
+    // 1. โหลดข้อมูลหมวดหมู่ปกติ
+    DB_KEYS.forEach(key => {
+        const docRef = doc(db, "school_data", `wany_data_${key}`);
+        onSnapshot(docRef, { includeMetadataChanges: true }, (docSnap) => {
+            if (docSnap.metadata.hasPendingWrites) return;
+            if (docSnap.exists()) dataState[key] = docSnap.data().items || [];
+            else dataState[key] = [];
+            triggerUIRefresh();
+        });
     });
+
+    // 2. โหลดข้อมูล Exams (ดึงจาก 10 ไฟล์ย่อยมาประกอบร่างกัน)
+    for (let i = 0; i < EXAM_CHUNKS; i++) {
+        const docRef = doc(db, "school_data", `wany_data_exams_part_${i}`);
+        onSnapshot(docRef, { includeMetadataChanges: true }, (docSnap) => {
+            if (docSnap.metadata.hasPendingWrites) return;
+            
+            if (docSnap.exists()) {
+                examsDataArray[i] = docSnap.data().items || [];
+            } else {
+                examsDataArray[i] = [];
+            }
+            // นำทั้ง 10 ส่วนมารวมกลับเป็น Array เดียว
+            dataState.exams = examsDataArray.flat();
+            triggerUIRefresh();
+        });
+    }
 }
 
-// ==========================================
-// 💾 ฟังก์ชัน Save Data (บันทึกลง Firestore)
-// ==========================================
+// ฟังก์ชันหน่วงเวลาเพื่อป้องกัน UI กระตุกตอนโหลดทีละไฟล์
+function triggerUIRefresh() {
+    clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        saveToLocalStorage();
+        refreshUI();
+        updateSyncUI('Online (Firestore)', 'green');
+    }, 300);
+}
+
 export async function saveAndRefresh(payload = null) {
-    
-    // 1. อัปเดตหน้าจอทันที (Optimistic Update)
     if (payload) {
         try {
             updateLocalState(payload); 
@@ -79,26 +79,40 @@ export async function saveAndRefresh(payload = null) {
 
     clearTimeout(saveTimeout);
 
-    // ⏳ ปรับลดเวลาหน่วงเหลือ 100ms (0.1 วินาที) ทำให้บันทึกลง Firestore ทันที
     saveTimeout = setTimeout(async () => {
         try {
             updateSyncUI('Saving...', 'yellow');
-            const dataToSave = JSON.parse(JSON.stringify(dataState));
-            await setDoc(docRef, dataToSave);
+            
+            // 1. เซฟข้อมูลหมวดหมู่ปกติ
+            const savePromises = DB_KEYS.map(key => {
+                const docRef = doc(db, "school_data", `wany_data_${key}`);
+                const rawData = dataState[key] || [];
+                return setDoc(docRef, { items: rawData });
+            });
 
+            // 2. เซฟข้อมูล Exams (หั่นกลับเป็น 10 ไฟล์ย่อยเพื่อเซฟ)
+            const exams = dataState.exams || [];
+            const chunkSize = Math.max(1, Math.ceil(exams.length / EXAM_CHUNKS));
+            
+            for (let i = 0; i < EXAM_CHUNKS; i++) {
+                const chunkDocRef = doc(db, "school_data", `wany_data_exams_part_${i}`);
+                const chunkData = exams.slice(i * chunkSize, (i + 1) * chunkSize);
+                savePromises.push(setDoc(chunkDocRef, { items: chunkData }));
+            }
+
+            await Promise.all(savePromises);
             updateSyncUI('Online (Saved)', 'green');
-            console.log("✅ Saved to Firestore instantly.");
 
         } catch (error) {
             console.error("Save Error:", error);
             updateSyncUI('Save Failed', 'red');
             showToast("บันทึกไม่สำเร็จ: " + error.message, "error");
         }
-    }, 100); // <--- แก้ไขตรงนี้เป็น 100
+    }, 100); 
 }
 
 // ==========================================
-// 📦 ฟังก์ชัน Backup / Restore (เหมือนเดิม)
+// 📦 ฟังก์ชัน Backup / Restore (Google Sheet)
 // ==========================================
 export async function backupToGoogleSheet() {
     if (!confirm("ต้องการสำรองข้อมูลปัจจุบันไปยัง Google Sheet หรือไม่?")) return;
@@ -139,8 +153,14 @@ export async function restoreFromGoogleSheet() {
         if(json.data.attendance) dataState.attendance = json.data.attendance;
         if(json.data.materials) dataState.materials = json.data.materials;
 
-        const dataToSave = JSON.parse(JSON.stringify(dataState));
-        await setDoc(docRef, dataToSave);
+        // 🟢 เปลี่ยนวิธี Save ตอน Restore ให้แยกเซฟลง 7 ไฟล์เช่นเดียวกัน
+        const savePromises = DB_KEYS.map(key => {
+            const docRef = doc(db, "school_data", `wany_data_${key}`);
+            const rawData = dataState[key] || [];
+            return setDoc(docRef, { items: rawData });
+        });
+        
+        await Promise.all(savePromises);
         saveToLocalStorage();
 
         alert("กู้คืนข้อมูลสำเร็จ!");
@@ -152,6 +172,9 @@ export async function restoreFromGoogleSheet() {
     }
 }
 
+// ==========================================
+// 🔄 คิวจัดการ Google Sheet
+// ==========================================
 async function processSheetQueue() {
     if (globalState.isSendingSheet || globalState.sheetQueue.length === 0) return;
     globalState.isSendingSheet = true;
@@ -160,7 +183,7 @@ async function processSheetQueue() {
     try {
         await fetch(GOOGLE_SCRIPT_URL, {
             method: "POST",
-            mode: "no-cors",
+            mode: "no-cors", // ใช้ no-cors หากไม่ต้องการรอ response กลับ
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(item)
         });

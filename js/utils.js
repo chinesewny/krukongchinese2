@@ -122,6 +122,39 @@ export function calculateScores(studentId, classId, tasks) {
         else if (task.category === 'final') { finalRaw += score; } 
         else if (task.category === 'special_final') { specialFinal += score; }
     });
+    // --- 2.5 คำนวณคะแนนจาก "ข้อสอบออนไลน์" มารวมด้วย ---
+    const subjectExams = (dataState.exams || []).filter(ex => 
+        ex.subjectId == (subject ? subject.id : null) && ex.category && ex.category !== 'none'
+    );
+
+    subjectExams.forEach(exam => {
+        const scoreEntry = dataState.scores.find(s => s.studentId == studentId && s.taskId == exam.id);
+        if (!scoreEntry || scoreEntry.score === null) return; // ข้ามถ้ายังไม่ได้สอบ
+
+        let score = parseFloat(scoreEntry.score);
+        if (isNaN(score)) score = 0;
+        
+        let examMax = exam.questions ? exam.questions.length : 10; // คะแนนเต็มใช้จำนวนข้อ
+        
+        if (exam.category === 'accum') {
+            if (exam.chapter && exam.chapter.length > 0) {
+                let chaps = Array.isArray(exam.chapter) ? exam.chapter : [String(exam.chapter)];
+                const validChaps = chaps.filter(ch => { const idx = Number(ch) - 1; return idx >= 0 && idx < 20; });
+                
+                if (validChaps.length > 0) {
+                    const scoreShare = score / validChaps.length;
+                    const maxShare = examMax / validChaps.length;
+                    validChaps.forEach(ch => { 
+                        const idx = Number(ch) - 1; 
+                        chapScores[idx] += scoreShare;   
+                        chapMaxScores[idx] += maxShare;  
+                    });
+                }
+            }
+        } 
+        else if (exam.category === 'midterm') { midtermRaw += score; } 
+        else if (exam.category === 'final') { finalRaw += score; } 
+    });
 
     // --- 3. คำนวณ Scaling (เทียบบัญญัติไตรยางศ์) ---
     for(let i=0; i<20; i++) {
@@ -169,4 +202,37 @@ export function calculateScores(studentId, classId, tasks) {
         final: finalTotal,
         total: grandTotal
     };
+}
+// js/utils.js
+
+export function compressImage(file, maxWidth = 800, quality = 0.7) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // ลดขนาดถ้าความกว้างเกิน maxWidth
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // คืนค่าเป็น Base64 แบบ JPEG
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
 }

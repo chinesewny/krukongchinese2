@@ -885,7 +885,34 @@
                             </select>
                     </div>
                 </div>
-
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-white/5 rounded-xl border border-white/10">
+    <div>
+        <label class="block text-xs text-blue-400 mb-1">นำคะแนนไปรวมใน (หมวดหมู่)</label>
+        <select id="exam-category" class="w-full bg-black/20 rounded px-2 py-2 text-white outline-none">
+            <option value="none">ไม่รวม (ทดสอบแยก)</option>
+            <option value="accum">คะแนนเก็บรายบทเรียน</option>
+            <option value="midterm">คะแนนสอบกลางภาค</option>
+            <option value="final">คะแนนสอบปลายภาค</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs text-yellow-400 mb-1">บทที่ (กรณีเลือกคะแนนเก็บรายบท)</label>
+        <div>
+    <div id="exam-chapter-container" class="grid grid-cols-5 md:grid-cols-10 gap-2 p-3 bg-black/20 rounded-lg max-h-32 overflow-y-auto border border-white/5">
+        <script>
+            for(let i=1; i<=6; i++) {
+                document.write(`
+                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-white/10 p-1 rounded transition-colors">
+                        <input type="checkbox" value="${i}" class="exam-chapter-cb w-3.5 h-3.5 accent-yellow-500 rounded">
+                        <span class="text-xs text-white/90">${i}</span>
+                    </label>
+                `);
+            }
+        </script>
+    </div>
+</div>
+    </div>
+</div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-white/5 rounded-xl border border-white/10">
                     <div>
                         <label class="block text-xs text-yellow-400 mb-1">เวลาสอบ (นาที)</label>
@@ -909,13 +936,17 @@
                 </div>
 
                 <div class="mb-4 flex justify-between items-end">
-                    <h3 class="text-lg font-bold text-white">รายการคำถาม <span id="q-count-badge" class="bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">0</span></h3>
-                    <div class="flex gap-2">
-                        <button type="button" onclick="addQuestionItem()" class="text-sm bg-yellow-500 text-black font-bold px-4 py-1.5 rounded-lg hover:bg-yellow-400 shadow-lg">
-                            <i class="fa-solid fa-plus"></i> เพิ่มข้อ
-                        </button>
-                    </div>
-                </div>
+    <h3 class="text-lg font-bold text-white">รายการคำถาม <span id="q-count-badge" class="bg-yellow-500 text-black text-xs px-2 py-0.5 rounded-full">0</span></h3>
+    <div class="flex gap-2">
+        <button type="button" onclick="addQuestionItem()" class="text-sm bg-yellow-500 text-black font-bold px-4 py-1.5 rounded-lg hover:bg-yellow-400 shadow-lg transition-colors">
+            <i class="fa-solid fa-plus"></i> เพิ่มข้อ
+        </button>
+        
+        <button type="button" onclick="addSectionDivider()" class="text-sm bg-blue-600 text-white font-bold px-4 py-1.5 rounded-lg hover:bg-blue-500 shadow-lg transition-colors">
+            <i class="fa-solid fa-layer-group"></i> เพิ่มตอน
+        </button>
+    </div>
+</div>
 
                 <div id="questions-container" class="space-y-4">
                     </div>
