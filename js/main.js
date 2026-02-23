@@ -23,6 +23,12 @@ import {
     addQuestionItem,
     openEditColumnModal, renderScoreManagerTable, editChapterConfig,renderExamManagerPage,renderMainExamHub
 } from "./ui-render.js";
+import { previewTasksBySubject } from "./ui-render.js"; // Import เข้ามา
+
+window.previewTasksBySubject = previewTasksBySubject; // ผูกกับ Window
+// --- ส่วน Lucky Draw ---
+import { setLuckyMode, startLuckyDraw, clearLuckyHistory } from "./ui-render.js";
+import { openEditChapterModal } from "./ui-render.js"; // อย่าลืม import
 import { getThaiDateISO, formatThaiDate, calGrade, showToast, showLoading, hideLoading, calculateScores, compressImage } from "./utils.js";
 import { PERIODS } from "./config.js";
 window.deleteTask = function(taskId) {
@@ -183,7 +189,26 @@ window.handleLogout = function(force=false) {
         setTimeout(() => location.reload(), 500);
     } 
 };
+// ตัวอย่างการทำ Auto-Login เมื่อเปิดหน้าเว็บ
+window.checkAutoLogin = function() {
+    const savedCode = localStorage.getItem('current_student_code');
+    if (savedCode && dataState.students && dataState.students.length > 0) {
+        const student = dataState.students.find(s => String(s.code) === String(savedCode));
+        if (student) {
+            // ซ่อนหน้าล็อคอิน แสดง Dashboard
+            const loginWrapper = document.getElementById('student-login-wrapper');
+            const dashboard = document.getElementById('student-dashboard');
+            if(loginWrapper) loginWrapper.classList.add('hidden');
+            if(dashboard) dashboard.classList.remove('hidden');
+            
+            if (typeof renderStudentDashboard === 'function') {
+                renderStudentDashboard(student.code); // ดึงข้อมูลมาแสดง
+            }
+        }
+    }
+};
 
+// อย่าลืมเรียกใช้ checkAutoLogin() หลังจากที่โหลดข้อมูลนักเรียนเสร็จแล้วนะครับ
 window.handleStudentLogin = async function() {
     // 1. รับค่าและล้างช่องว่างที่มองไม่เห็นทั้งหมด
     let rawInput = document.getElementById('student-login-id').value;
@@ -1204,7 +1229,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // ฟังก์ชันบันทึกการแก้ไขจาก Modal
 // ในไฟล์ js/main.js
 
-import { openEditChapterModal } from "./ui-render.js"; // อย่าลืม import
 
 window.openEditChapterModal = openEditChapterModal; // ผูก window
 
@@ -1495,12 +1519,6 @@ window.downloadGradeReport = function() {
 };
 // ในไฟล์ js/main.js (ท้ายไฟล์)
 
-import { previewTasksBySubject } from "./ui-render.js"; // Import เข้ามา
-
-window.previewTasksBySubject = previewTasksBySubject; // ผูกกับ Window
-// --- ส่วน Lucky Draw ---
-import { setLuckyMode, startLuckyDraw, clearLuckyHistory } from "./ui-render.js";
-
 // ผูกฟังก์ชันเข้ากับ Window เพื่อให้ HTML เรียก onclick="..." ได้
 window.setLuckyMode = setLuckyMode;
 window.startLuckyDraw = startLuckyDraw;
@@ -1668,7 +1686,6 @@ window.processCSVImport = function() {
 // --- ส่วนจัดการข้อสอบ (Exam Logic) ---
 
 window.saveExamData = function() {
-    
     const id = document.getElementById('exam-id').value || `exam_${Date.now()}`;
     const title = document.getElementById('exam-title').value;
     const subjectId = document.getElementById('exam-subject').value;
@@ -1687,28 +1704,45 @@ window.saveExamData = function() {
         return;
     }
 
-    // 🟢 กระบวนการดึงข้อมูลแบบใหม่ (ไล่อ่านจากบนลงล่างเหมือน Google Form)
     const questions = [];
     const container = document.getElementById('questions-container');
-    const items = container.children; // ดึง Element ทั้งหมดในกล่องใหญ่
+    const items = container.children; 
     
-    let currentSection = ""; // ตัวแปรจำชื่อตอนปัจจุบัน
+    let currentSection = ""; 
+    let currentPassage = null; 
 
+    // ไล่อ่านข้อมูลจากบนลงล่าง
     for (let i = 0; i < items.length; i++) {
         const el = items[i];
 
-        // ถ้าเจอกล่องแบ่งตอน ให้จำชื่อตอนเอาไว้
+        // 1. ถ้าเจอกล่องแบ่งตอน
         if (el.classList.contains('section-item')) {
             currentSection = el.querySelector('.section-title').value.trim();
+            currentPassage = null; // ล้างค่าบทอ่านเมื่อขึ้นตอนใหม่
         } 
-        // ถ้าเจอกล่องคำถาม ให้อ่านข้อมูลและแปะชื่อตอน (ที่จำไว้ล่าสุด) ลงไป
+        // 2. ถ้าเจอกล่องบทอ่าน
+        else if (el.classList.contains('passage-item')) {
+            const pText = el.querySelector('.p-text').value;
+            const imgEl = el.querySelector('.q-image-data');
+            const pImage = (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) ? imgEl.src : null;
+            
+            currentPassage = {
+                id: `p_${Date.now()}_${i}`,
+                text: pText,
+                image: pImage
+            };
+        }
+        // 3. ถ้าเจอกล่องคำถาม
         else if (el.classList.contains('question-item')) {
             const text = el.querySelector('.q-text').value;
-            const choicesRaw = el.querySelectorAll('.c-text');
-            const correctRadio = el.querySelectorAll('input[type="radio"]');
+            
+            // 🟢 โค้ดส่วนที่เคยหายไป: ดึงรูปภาพของข้อสอบ
             const imgEl = el.querySelector('.q-image-data');
             const image = (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) ? imgEl.src : null;
 
+            // 🟢 โค้ดส่วนที่เคยหายไป: ดึงตัวเลือก (Choices)
+            const choicesRaw = el.querySelectorAll('.c-text');
+            const correctRadio = el.querySelectorAll('input[type="radio"]');
             const choices = [];
             choicesRaw.forEach((cInput, cIndex) => {
                 choices.push({
@@ -1718,9 +1752,11 @@ window.saveExamData = function() {
                 });
             });
 
+            // นำข้อมูลทั้งหมดแพ็ครวมกัน
             questions.push({
-                id: `q${questions.length+1}`, // รัน ID ใหม่ตามลำดับ
-                section: currentSection, // 🟢 ใส่ชื่อตอนที่จำไว้ลงไป
+                id: `q${questions.length+1}`, 
+                section: currentSection, 
+                passage: currentPassage, 
                 text: text,
                 image: image,
                 choices: choices
@@ -1733,7 +1769,6 @@ window.saveExamData = function() {
         return;
     }
 
-    // สร้าง Object ข้อสอบและบันทึก
     const newExam = {
         id, title, subjectId, timeLimit, allowSwitch, password,
         shuffleQuestions: shuffleQ,
@@ -1744,6 +1779,10 @@ window.saveExamData = function() {
         updatedAt: new Date().toISOString()
     };
 
+    if (!dataState.exams) {
+        dataState.exams = [];
+    }
+
     const existingIdx = dataState.exams.findIndex(e => e.id === id);
     if(existingIdx > -1) {
         dataState.exams[existingIdx] = newExam; 
@@ -1751,11 +1790,15 @@ window.saveExamData = function() {
         dataState.exams.push(newExam); 
     }
 
-    saveAndRefresh({ action: 'update_exam_data' }); 
-    closeExamModal();
-    showToast("บันทึกชุดข้อสอบเรียบร้อย!", "success");
+    if(typeof saveAndRefresh === 'function') {
+        saveAndRefresh({ action: 'update_exam_data' }); 
+    } 
     
-    if(typeof renderExamManagerPage === 'function') renderExamManagerPage();
+    if(typeof closeExamModal === 'function') closeExamModal();
+    if(typeof showToast === 'function') showToast("บันทึกชุดข้อสอบเรียบร้อย!", "success");
+    
+    if(typeof renderExamPanel === 'function') renderExamPanel();
+    if(typeof renderMainExamHub === 'function') renderMainExamHub();
 }
 // ในไฟล์ js/main.js
 
@@ -1842,80 +1885,98 @@ function startTimer(durationSeconds) {
 // ในไฟล์ js/main.js
 
 window.renderExamUI = function(examData) {
-    // 1. เช็คค่า: ถ้ามีส่งมาให้ใช้ที่ส่งมา ถ้าไม่มีให้ไปหาจาก Global
     const exam = examData || window.currentExam;
-
-    if (!exam) {
-        console.error("renderExamUI: Exam data is missing!");
-        return;
-    }
-
-    // อัปเดต Global เพื่อความชัวร์
+    if (!exam) return;
     window.currentExam = exam;
 
-    // 2. Render Navigator (ปุ่มเลขข้อด้านซ้าย)
-    const navGrid = document.getElementById('exam-nav-grid');
-    if (navGrid && exam.questions) {
-        navGrid.innerHTML = exam.questions.map((q, idx) => `
-            <button onclick="scrollToQuestion('q-${idx}')" id="nav-btn-${q.id}" class="w-10 h-10 rounded bg-white/10 text-white/70 text-sm hover:bg-yellow-500 hover:text-black transition-colors border border-white/5">
-                ${idx + 1}
-            </button>
-        `).join('');
-    }
-
-    // 3. Render Questions (โจทย์ทั้งหมด)
     const displayArea = document.getElementById('question-display-area');
+    const navGrid = document.getElementById('exam-nav-grid');
+    
     if (displayArea && exam.questions) {
-        
-        // 🟢 3.1 จัดกลุ่มข้อสอบตาม "ตอนที่" และสุ่มข้อเฉพาะภายในตอนเดียวกัน
-        let questionsToShow = [];
-        const grouped = {};
+        // 🟢 1. จัดกลุ่มและสุ่มลำดับ (โดยรักษาหมวดหมู่และบทอ่านไว้ด้วยกัน)
+        let orderedQuestions = [];
+        const sectionGroups = {};
         
         exam.questions.forEach(q => {
-            const sec = q.section || 'ทั่วไป'; // ถ้าไม่ระบุตอน ให้ถือเป็นตอนทั่วไป
-            if(!grouped[sec]) grouped[sec] = [];
-            grouped[sec].push(q);
+            const sec = q.section || 'ทั่วไป';
+            if(!sectionGroups[sec]) sectionGroups[sec] = [];
+            sectionGroups[sec].push(q);
         });
 
-        // วนลูปแต่ละตอน เพื่อสุ่มข้อสอบข้างใน (ถ้าครูเปิดตั้งค่าไว้)
-        for (let sec in grouped) {
-            let group = grouped[sec];
-            if (exam.shuffleQuestions) {
-                group.sort(() => Math.random() - 0.5); 
-            }
-            questionsToShow = questionsToShow.concat(group); // เอามาต่อกันหลังสุ่มเสร็จ
+        for (let sec in sectionGroups) {
+            let sectionQuestions = sectionGroups[sec];
+            const passageGroups = {};
+            
+            sectionQuestions.forEach(q => {
+                const pid = q.passage ? q.passage.id : `standalone_${q.id}`;
+                if(!passageGroups[pid]) passageGroups[pid] = { passage: q.passage, questions: [] };
+                passageGroups[pid].questions.push(q);
+            });
+
+            let groupKeys = Object.keys(passageGroups);
+            if (exam.shuffleQuestions) groupKeys.sort(() => Math.random() - 0.5); // สุ่มกลุ่มบทอ่าน
+
+            let sectionFirstRender = true;
+            groupKeys.forEach(key => {
+                const group = passageGroups[key];
+                let qs = group.questions;
+                
+                if (exam.shuffleQuestions) qs.sort(() => Math.random() - 0.5); // สุ่มคำถามภายในบทอ่าน
+                
+                if (qs.length > 0) {
+                    if (sectionFirstRender) { qs[0]._renderSection = sec; sectionFirstRender = false; }
+                    qs[0]._renderPassage = group.passage; // แปะบทอ่านไว้ที่ข้อแรกของกลุ่มเพื่อใช้วาด UI
+                }
+                orderedQuestions = orderedQuestions.concat(qs);
+            });
         }
 
-        // 🟢 3.2 เริ่มวาด HTML ลงหน้าจอ
-        let currentRenderSection = null;
+        // 🟢 2. Render Navigator (ปุ่มตัวเลข) ตามลำดับที่จัดเรียงแล้ว
+        if (navGrid) {
+            navGrid.innerHTML = orderedQuestions.map((q, idx) => `
+                <button onclick="scrollToQuestion('q-${idx}')" id="nav-btn-${q.id}" class="w-10 h-10 rounded bg-white/10 text-white/70 text-sm hover:bg-yellow-500 hover:text-black transition-colors border border-white/5">
+                    ${idx + 1}
+                </button>
+            `).join('');
+        }
 
+        // 🟢 3. Render คำถามและบทอ่าน
         displayArea.innerHTML = `
-            <div class="max-w-3xl w-full space-y-8 pb-20">
-                ${questionsToShow.map((q, idx) => {
-                    // ตรวจสอบว่าต้องขึ้นป้าย "ตอนที่" ใหม่หรือไม่
-                    let sectionHtml = '';
-                    const qSec = q.section || '';
+            <div class="max-w-3xl w-full space-y-6 pb-20">
+                ${orderedQuestions.map((q, idx) => {
+                    let prependHtml = '';
                     
-                    if (qSec !== currentRenderSection && qSec !== '' && qSec !== 'ทั่วไป') {
-                        currentRenderSection = qSec;
-                        sectionHtml = `
-                            <div class="w-full bg-blue-600/20 border border-blue-500/30 text-blue-300 font-bold p-4 rounded-xl mt-10 mb-4 text-center text-lg shadow-lg">
-                                <i class="fa-solid fa-folder-open mr-2"></i> ${currentRenderSection}
+                    // ถ้านี่คือข้อแรกของตอน ให้วาดป้าย Section
+                    if (q._renderSection && q._renderSection !== 'ทั่วไป' && q._renderSection !== '') {
+                        prependHtml += `
+                            <div class="w-full bg-blue-600/20 border border-blue-500/30 text-blue-300 font-bold p-4 rounded-xl mt-10 mb-2 text-center text-lg shadow-lg">
+                                <i class="fa-solid fa-folder-open mr-2"></i> ${q._renderSection}
                             </div>
                         `;
-                    } else if (qSec !== currentRenderSection) {
-                        currentRenderSection = qSec; // จำค่าตอนทั่วไปไว้ จะได้ไม่ปริ้นท์ซ้ำ
                     }
 
-                    // สุ่มช้อยส์
+                    // ถ้านี่คือข้อแรกของกลุ่มบทอ่าน ให้วาดกล่องบทอ่าน
+                    const p = q._renderPassage;
+                    if (p && (p.text || p.image)) {
+                        prependHtml += `
+                            <div class="bg-purple-900/30 border border-purple-500/30 p-6 rounded-2xl mb-2 shadow-lg mt-6">
+                                <div class="flex items-center gap-2 mb-4 border-b border-purple-500/30 pb-3">
+                                    <span class="bg-purple-500 text-white font-bold px-3 py-1.5 rounded-full text-xs"><i class="fa-solid fa-book-open"></i> ข้อมูลสำหรับตอบคำถาม</span>
+                                </div>
+                                ${(p.image && p.image.startsWith('data:image')) ? `<img src="${p.image}" class="max-w-full md:max-w-lg rounded-lg mb-4 border border-white/20 mx-auto">` : ''}
+                                ${p.text ? `<p class="text-purple-100 text-md leading-relaxed whitespace-pre-line">${p.text}</p>` : ''}
+                            </div>
+                        `;
+                    }
+
                     let choices = [...q.choices];
                     if (exam.shuffleChoices) choices.sort(() => Math.random() - 0.5);
 
                     return `
-                    ${sectionHtml}
-                    <div id="q-${idx}" class="bg-white/5 border border-white/10 p-6 rounded-2xl relative">
+                    ${prependHtml}
+                    <div id="q-${idx}" class="bg-white/5 border border-white/10 p-6 rounded-2xl relative mb-4">
                         <div class="flex gap-3 mb-4">
-                            <span class="bg-yellow-500 text-black font-bold px-2 py-0.5 rounded h-fit text-sm">ข้อ ${idx+1}</span>
+                            <span class="bg-yellow-500 text-black font-bold px-2 py-0.5 rounded h-fit text-sm shrink-0">ข้อ ${idx+1}</span>
                             <div class="w-full">
                                 ${(q.image && q.image.startsWith('data:image')) ? `<img src="${q.image}" class="max-w-full md:max-w-md rounded-lg mb-4 border border-white/20">` : ''}
                                 <p class="text-white text-lg leading-relaxed whitespace-pre-line">${q.text}</p>
@@ -1924,7 +1985,7 @@ window.renderExamUI = function(examData) {
                         <div class="grid grid-cols-1 gap-3 pl-2 md:pl-10">
                             ${choices.map(c => `
                                 <label class="flex items-center gap-3 p-3 rounded-xl border border-white/5 hover:bg-white/10 cursor-pointer transition-all group">
-                                    <div class="relative flex items-center">
+                                    <div class="relative flex items-center shrink-0">
                                         <input type="radio" name="ans-${q.id}" value="${c.id}" onchange="selectAnswer('${q.id}', '${c.id}')" class="peer w-5 h-5 appearance-none border-2 border-white/30 rounded-full checked:border-green-500 checked:bg-green-500 transition-all">
                                         <i class="fa-solid fa-check text-white text-[10px] absolute top-1 left-1 opacity-0 peer-checked:opacity-100"></i>
                                     </div>
@@ -3082,9 +3143,6 @@ window.loadMaterialsFromSheet = async function() {
             
             // สั่ง render หน้าจอใหม่ (ถ้าเปิดหน้า Admin Material อยู่)
             if(document.getElementById('admin-panel-material')) {
-                 // Import ฟังก์ชัน renderAdminMaterials จาก ui-render.js มาใช้
-                 // หรือถ้า import * as UI มาแล้วก็เรียก UI.renderAdminMaterials()
-                 // ในที่นี้สมมติว่ามีการ import { renderAdminMaterials } ...
                  import('./ui-render.js').then(module => {
                      module.renderAdminMaterials();
                  });
