@@ -2390,7 +2390,6 @@ window.importExamFromWord = function(input) {
     // Reset input เพื่อให้เลือกไฟล์เดิมซ้ำได้
     input.value = '';
 }
-
 // 3. Logic แปลงข้อความ เป็น ข้อสอบ
 function parseExamText(text) {
     const lines = text.split(/\n/).map(l => l.trim()).filter(l => l);
@@ -2398,43 +2397,57 @@ function parseExamText(text) {
     let currentQuestion = null;
     let questions = [];
     let choicesBuffer = [];
-    let currentSection = ""; // ตัวแปรเก็บชื่อตอนปัจจุบัน
+    let currentSection = ""; 
+    let currentPassageText = ""; // 🟢 ตัวแปรใหม่สำหรับคอยจับข้อความบทอ่าน
 
     lines.forEach(line => {
-        // 1) ดักจับชื่อตอน (ถ้าขึ้นต้นด้วย ตอนที่, Part, Section)
+        // 1) ดักจับชื่อตอน 
         if (/^(ตอนที่|part|section)\s*.+/i.test(line)) {
-            currentSection = line; // จำชื่อตอนเอาไว้ใช้กับข้อถัดๆ ไป
+            currentSection = line; 
+            currentPassageText = ""; 
         }
-        // 2) ตรวจสอบโจทย์
+        // 🟢 2) ดักจับ "บทอ่าน" หรือ "ข้อมูล"
+        else if (/^(บทอ่าน|ข้อมูล|เนื้อเรื่อง|passage)[:\s]/i.test(line)) {
+            currentPassageText = line.replace(/^(บทอ่าน|ข้อมูล|เนื้อเรื่อง|passage)[:\s]*/i, '');
+        }
+        // 3) ตรวจสอบโจทย์
         else if (/^\d+[\.)]\s+/.test(line)) {
             if (currentQuestion) finalizeQuestion(currentQuestion, choicesBuffer, questions);
             
             currentQuestion = {
                 text: line.replace(/^\d+[\.)]\s+/, ''),
-                section: currentSection, // แนบชื่อตอนไปกับข้อสอบด้วย
+                section: currentSection, 
+                passage: currentPassageText, // 🟢 นำบทอ่านมาผูกติดกับโจทย์ข้อแรกที่เจอ
                 choices: []
             };
             choicesBuffer = [];
+            currentPassageText = ""; // ล้างค่าทิ้งเพื่อไม่ให้กล่องบทอ่านไปซ้ำกับข้อถัดไป
         } 
-        // 3) ตรวจสอบเฉลย
+        // 4) ตรวจสอบเฉลย
         else if (/^(เฉลย|ans|answer|答|答案)[:\s]/i.test(line)) {
             if(currentQuestion) {
                 currentQuestion.correctAnswerRaw = line.split(/[:\s]+/).pop().trim().toLowerCase();
             }
         }
-        // 4) ตรวจสอบตัวเลือก
+        // 5) ตรวจสอบตัวเลือก
         else if (/^[ก-ฮa-zA-Z][\.)]\s+/.test(line)) {
             if (currentQuestion) {
                 const cleanChoice = line.replace(/^[ก-ฮa-zA-Z][\.)]\s*/, '');
                 choicesBuffer.push(cleanChoice);
             }
         }
-        // 5) จัดการข้อความหลายบรรทัด
-        else if (currentQuestion) {
-            if (choicesBuffer.length === 0) {
-                currentQuestion.text += '\n' + line;
-            } else {
-                choicesBuffer[choicesBuffer.length - 1] += ' ' + line;
+        // 6) จัดการข้อความหลายบรรทัด
+        else {
+            if (currentPassageText !== "") {
+                // 🟢 ถ้ากำลังพิมพ์บทอ่านค้างอยู่ ให้เอาบรรทัดนี้ไปต่อท้ายกล่องบทอ่าน
+                currentPassageText += '\n' + line;
+            } else if (currentQuestion) {
+                if (choicesBuffer.length === 0) {
+                    currentQuestion.text += '\n' + line;
+                } else {
+                    // ⚠️ ของเดิมบทอ่านจะหลุดมาเข้าตรงนี้ ทำให้ไปต่อท้ายตัวเลือก ง.
+                    choicesBuffer[choicesBuffer.length - 1] += ' ' + line;
+                }
             }
         }
     });
@@ -2443,21 +2456,26 @@ function parseExamText(text) {
         finalizeQuestion(currentQuestion, choicesBuffer, questions);
     }
 
-    // 🟢 นำเข้าสู่หน้าจอ (ปรับปรุงใหม่ให้วาดกล่องแบ่งตอนด้วย)
+    // นำเข้าสู่หน้าจอ 
     if(questions.length > 0) {
         if(confirm(`พบคำถามจำนวน ${questions.length} ข้อ ต้องการนำเข้าหรือไม่? (ข้อมูลเดิมในหน้านี้จะหายไป)`)) {
             document.getElementById('questions-container').innerHTML = ''; 
             
-            let lastRenderedSection = ""; // ตัวช่วยจำว่าวาดกล่องตอนไหนไปแล้วบ้าง
+            let lastRenderedSection = ""; 
             
             questions.forEach(q => {
-                // ถ้าข้อสอบมีชื่อตอน และชื่อตอนนั้นยังไม่ได้ถูกวาดลงไป
+                // 1. วาดกล่องตอนสีน้ำเงิน
                 if (q.section && q.section !== lastRenderedSection) {
-                    window.addSectionDivider(q.section); // วาดกล่องสีน้ำเงิน (แบ่งตอน)
-                    lastRenderedSection = q.section;     // อัปเดตความจำ
+                    window.addSectionDivider(q.section); 
+                    lastRenderedSection = q.section;     
                 }
                 
-                // จากนั้นค่อยวาดกล่องคำถามปกติ
+                // 🟢 2. วาดกล่องบทอ่านสีม่วง (ถ้าระบุไว้ใน Word)
+                if (q.passage && q.passage.trim() !== "") {
+                    window.addPassageDivider({ text: q.passage });
+                }
+                
+                // 3. วาดกล่องคำถาม
                 window.addQuestionItem(q); 
             });
             
