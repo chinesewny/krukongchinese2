@@ -1735,12 +1735,9 @@ window.saveExamData = function() {
         // 3. ถ้าเจอกล่องคำถาม
         else if (el.classList.contains('question-item')) {
             const text = el.querySelector('.q-text').value;
-            
-            // 🟢 โค้ดส่วนที่เคยหายไป: ดึงรูปภาพของข้อสอบ
             const imgEl = el.querySelector('.q-image-data');
             const image = (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) ? imgEl.src : null;
 
-            // 🟢 โค้ดส่วนที่เคยหายไป: ดึงตัวเลือก (Choices)
             const choicesRaw = el.querySelectorAll('.c-text');
             const correctRadio = el.querySelectorAll('input[type="radio"]');
             const choices = [];
@@ -1761,6 +1758,9 @@ window.saveExamData = function() {
                 image: image,
                 choices: choices
             });
+
+            // 🔴 สำคัญมาก: ล้างค่าบทอ่านทิ้งทันที! เพื่อไม่ให้มันไปเกาะติดกับข้อสอบข้อถัดไป
+            currentPassage = null; 
         }
     }
 
@@ -1779,9 +1779,7 @@ window.saveExamData = function() {
         updatedAt: new Date().toISOString()
     };
 
-    if (!dataState.exams) {
-        dataState.exams = [];
-    }
+    if (!dataState.exams) dataState.exams = [];
 
     const existingIdx = dataState.exams.findIndex(e => e.id === id);
     if(existingIdx > -1) {
@@ -1790,13 +1788,9 @@ window.saveExamData = function() {
         dataState.exams.push(newExam); 
     }
 
-    if(typeof saveAndRefresh === 'function') {
-        saveAndRefresh({ action: 'update_exam_data' }); 
-    } 
-    
+    if(typeof saveAndRefresh === 'function') saveAndRefresh({ action: 'update_exam_data' }); 
     if(typeof closeExamModal === 'function') closeExamModal();
     if(typeof showToast === 'function') showToast("บันทึกชุดข้อสอบเรียบร้อย!", "success");
-    
     if(typeof renderExamPanel === 'function') renderExamPanel();
     if(typeof renderMainExamHub === 'function') renderMainExamHub();
 }
@@ -2519,7 +2513,6 @@ function finalizeQuestion(qObj, choicesRaw, qArray) {
     });
 }
 // ในไฟล์ js/main.js
-
 window.startExamProcess = function(examId) {
     const exam = dataState.exams.find(e => e.id === examId);
     if (!exam) return;
@@ -2569,7 +2562,7 @@ window.startExamProcess = function(examId) {
 
         // ⭐ แก้ไขจุดที่ Error: ต้องใส่ Object เข้าไปใน saveAndRefresh
         saveAndRefresh({ 
-            action: 'updateExamSession', // หรือ action อื่นที่ backend รองรับ
+            action: 'updateExamSession', 
             session: newSession 
         }); 
     }
@@ -2586,6 +2579,18 @@ window.startExamProcess = function(examId) {
 
     // ⭐ กำหนดตัวแปร Global และส่งค่าไปให้ renderExamUI โดยตรง
     window.currentExam = exam; 
+
+    // ==========================================
+    // 🟢 เพิ่มโค้ด Auto-Resume บันทึกสถานะนักเรียนตรงนี้
+    // ==========================================
+    const studentInfo = dataState.students.find(s => s.id === studentId);
+    const classId = studentInfo ? studentInfo.classId : null;
+    
+    if (typeof saveStudentSession === 'function') {
+        // บันทึกความจำลงเครื่องว่าเด็กคนนี้กำลังสอบวิชานี้อยู่
+        saveStudentSession(studentId, classId, exam.id);
+    }
+    // ==========================================
     
     // เรียก renderExamUI โดยส่ง exam เข้าไปเพื่อป้องกันค่า null
     if (typeof window.renderExamUI === 'function') {

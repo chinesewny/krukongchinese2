@@ -84,3 +84,42 @@ export function loadFromLocalStorage() {
         if(new Date().getTime() - p.timestamp < 1800000) Object.assign(dataState, p.data); 
     } 
 }
+// ==========================================
+// 🟢 ระบบ Auto-Resume จดจำสถานะนักเรียนตอนสอบ
+// ==========================================
+
+// 1. บันทึกสถานะเมื่อนักเรียนล็อกอินเข้าห้องสอบสำเร็จ
+export function saveStudentSession(studentId, classId, examId) {
+    const sessionData = {
+        studentId: studentId,
+        classId: classId,
+        examId: examId,
+        timestamp: new Date().getTime() // เก็บเวลาล็อกอินไว้ตรวจสอบการหมดอายุ
+    };
+    localStorage.setItem('active_exam_session', JSON.stringify(sessionData));
+}
+
+// 2. ล้างสถานะเมื่อนักเรียน "ส่งข้อสอบ" หรือทำผิดกฎจนถูกระงับ
+export function clearStudentSession() {
+    localStorage.removeItem('active_exam_session');
+}
+
+// 3. ดึงข้อมูลที่ค้างอยู่ (ระบบจะเคลียร์ทิ้งอัตโนมัติถ้าค้างนานเกิน 3 ชั่วโมง)
+export function getActiveStudentSession() {
+    const sessionString = localStorage.getItem('active_exam_session');
+    if (!sessionString) return null;
+    
+    try {
+        const session = JSON.parse(sessionString);
+        const now = new Date().getTime();
+        const hoursPassed = (now - session.timestamp) / (1000 * 60 * 60);
+        
+        if (hoursPassed > 3) {
+            clearStudentSession(); 
+            return null;
+        }
+        return session;
+    } catch (e) {
+        return null;
+    }
+}

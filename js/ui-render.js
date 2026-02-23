@@ -1,4 +1,4 @@
-import { dataState, globalState } from "./state.js";
+import { dataState, globalState, saveStudentSession, clearStudentSession } from "./state.js";
 import { calculateScores, calGrade, formatThaiDate, getThaiDateISO, showToast, showLoading, hideLoading } from "./utils.js";
 window.renderStudentDashboard = renderStudentDashboard;
 // --- 1. Helper Functions (Dropdowns & Checkboxes) ---
@@ -2921,9 +2921,9 @@ export function openExamEditor(examId = null) {
     document.getElementById('exam-form').reset();
     document.getElementById('questions-container').innerHTML = '';
     document.getElementById('q-count-badge').textContent = '0';
-    document.getElementById('exam-id').value = ''; // เคลียร์ ID เพื่อให้รู้ว่าเป็นโหมดสร้างใหม่
+    document.getElementById('exam-id').value = ''; 
 
-    // 2. ถ้ามี examId ส่งมา แปลว่าเป็นการ "แก้ไข" (Edit Mode)
+    // 2. ถ้าเป็นการ "แก้ไข" (Edit Mode)
     if (examId) {
         const exam = dataState.exams.find(e => e.id === examId);
         if (exam) {
@@ -2936,13 +2936,35 @@ export function openExamEditor(examId = null) {
             document.getElementById('exam-shuffle-q').checked = !!exam.shuffleQuestions;
             document.getElementById('exam-shuffle-c').checked = !!exam.shuffleChoices;
 
-            // โหลดคำถามเดิมกลับมา
+            // 🟢 โหลดคำถามเดิมกลับมา (ปรับปรุงใหม่ให้วาดตอน/บทอ่านด้วย)
             if (exam.questions && exam.questions.length > 0) {
-                exam.questions.forEach(q => addQuestionItem(q));
+                let lastSection = "";
+                
+                exam.questions.forEach(q => {
+                    // 2.1 วาดกล่อง "ตอน" (Section) ถ้ามีและไม่ซ้ำกับข้อที่แล้ว
+                    if (q.section && q.section.trim() !== "" && q.section !== lastSection) {
+                        if(typeof window.addSectionDivider === 'function') {
+                            // ใช้ null เพื่อบังคับให้แปะลงกล่อง container หลัก
+                            window.addSectionDivider(q.section, null, 'append');
+                        }
+                        lastSection = q.section;
+                    }
+                    
+                    // 2.2 วาดกล่อง "บทอ่าน" (Passage) ถ้ามี
+                    if (q.passage) {
+                        if(typeof window.addPassageDivider === 'function') {
+                            // ใช้ null เพื่อบังคับให้แปะลงกล่อง container หลัก
+                            window.addPassageDivider(q.passage, null, 'append'); 
+                        }
+                    }
+
+                    // 2.3 วาดกล่องข้อสอบตามปกติ
+                    addQuestionItem(q);
+                });
             }
         }
     } else {
-        // ถ้าเป็นการสร้างใหม่ ให้เพิ่มข้อเปล่าๆ รอไว้ 1 ข้อ
+        // สร้างใหม่
         addQuestionItem();
     }
 
